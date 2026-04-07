@@ -70,4 +70,92 @@ class MatrixGlitch(MatrixBase):
                 
             # Column glitch
             col['glitch_timer'] -= 1
-            if col['glitch_timer']
+            if col['glitch_timer'] <= 0 and random.random() < self.config.glitch_chance:
+                col['glitch_timer'] = random.randint(5, 20)
+                
+        # Create glitch blocks
+        if random.random() < self.config.glitch_chance * 2:
+            self.create_glitch()
+            
+        # Update glitch blocks
+        for glitch in self.glitch_blocks[:]:
+            glitch['life'] -= 0.02
+            
+            # Update glitch characters
+            if random.random() < 0.3:
+                y = random.randint(0, glitch['height'] - 1)
+                x = random.randint(0, glitch['width'] - 1)
+                glitch['chars'][y][x] = self.get_random_char()
+                
+            if glitch['life'] <= 0:
+                self.glitch_blocks.remove(glitch)
+                
+    def render(self):
+        """Render matrix with glitch effects"""
+        Terminal.move_cursor(0, 0)
+        
+        # Create screen buffer
+        screen = [[' ' for _ in range(self.width)] for _ in range(self.height)]
+        colors = [[0 for _ in range(self.width)] for _ in range(self.height)]
+        
+        # Draw columns
+        for x, col in self.columns:
+            y_pos = int(col['y'])
+            glitch_offset = 0
+            
+            # Apply column glitch
+            if col['glitch_timer'] > 0:
+                glitch_offset = random.randint(-2, 2)
+                
+            for i, char in enumerate(col['chars']):
+                y = y_pos - i
+                if 0 <= y < self.height:
+                    draw_x = x + glitch_offset
+                    
+                    if 0 <= draw_x < self.width:
+                        screen[y][draw_x] = char
+                        color_idx = min(i, len(self.config.colors) - 1)
+                        colors[y][draw_x] = self.config.colors[color_idx]
+                        
+        # Draw glitch blocks
+        for glitch in self.glitch_blocks:
+            for y in range(glitch['height']):
+                for x in range(glitch['width']):
+                    screen_y = glitch['y'] + y
+                    screen_x = glitch['x'] + x + glitch['offset_x']
+                    
+                    if 0 <= screen_y < self.height and 0 <= screen_x < self.width:
+                        screen[screen_y][screen_x] = glitch['chars'][y][x]
+                        color_idx = int(glitch['life'] * len(self.config.colors))
+                        color_idx = max(0, min(color_idx, len(self.config.colors) - 1))
+                        colors[screen_y][screen_x] = self.config.colors[color_idx]
+                        
+        # Render screen
+        for y in range(self.height):
+            for x in range(self.width):
+                if screen[y][x] != ' ':
+                    Terminal.move_cursor(x, y)
+                    Terminal.set_color(colors[y][x])
+                    sys.stdout.write(screen[y][x])
+                    
+        Terminal.reset_color()
+        sys.stdout.flush()
+        
+    def run(self):
+        """Main loop"""
+        Terminal.setup()
+        
+        try:
+            while self.running:
+                self.update()
+                self.render()
+                time.sleep(1.0 / self.config.fps)
+        finally:
+            self.cleanup()
+
+def main():
+    glitch = MatrixGlitch()
+    glitch.run()
+
+if __name__ == "__main__":
+    main()
